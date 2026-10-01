@@ -3,184 +3,168 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Halloween Cemetery Demo</title>
+<title>Cemetery Family Demo</title>
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
-#c{display:block;width:100%;height:100%}
-#hud{position:fixed;left:14px;top:max(12px,env(safe-area-inset-top));color:#f1c06c;background:rgba(8,10,14,.78);padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.35;z-index:5;backdrop-filter:blur(4px)}
-#msg{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,.62);padding:10px 14px;border-radius:999px;font-size:14px;z-index:5;opacity:0;transition:.2s;white-space:nowrap}
-#joy{position:fixed;left:max(24px,env(safe-area-inset-left));bottom:max(22px,env(safe-area-inset-bottom));width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);z-index:6}
-#knob{position:absolute;left:36px;top:36px;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.38)}
-#interact{position:fixed;right:max(24px,env(safe-area-inset-right));bottom:max(34px,env(safe-area-inset-bottom));width:92px;height:92px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:rgba(225,132,45,.68);color:#fff;font-weight:700;font-size:14px;z-index:6}
-#hint{position:fixed;right:20px;top:max(14px,env(safe-area-inset-top));color:#ddd;font-size:11px;z-index:5;background:rgba(8,10,14,.65);padding:7px 9px;border-radius:7px}
+html,body{margin:0;height:100%;overflow:hidden;background:#101316;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#11161c}
+#hud{position:fixed;left:14px;top:max(12px,env(safe-area-inset-top));z-index:3;color:#f3bc62;background:rgba(3,6,9,.78);padding:9px 11px;border-radius:9px;font-size:12px;line-height:1.35}
+#joy{position:fixed;left:max(22px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));width:118px;height:118px;border-radius:50%;background:rgba(255,255,255,.11);border:2px solid rgba(255,255,255,.2);z-index:4}
+#knob{position:absolute;width:48px;height:48px;border-radius:50%;left:35px;top:35px;background:rgba(255,255,255,.45)}
+#interact{position:fixed;right:max(24px,env(safe-area-inset-right));bottom:max(38px,env(safe-area-inset-bottom));width:94px;height:94px;border-radius:50%;z-index:4;border:2px solid rgba(255,255,255,.25);background:#a96522;color:white;font-weight:800;font-size:14px}
+#msg{position:fixed;left:50%;bottom:132px;transform:translateX(-50%);z-index:5;color:white;background:rgba(0,0,0,.68);padding:9px 13px;border-radius:999px;font-size:13px;opacity:0;transition:.18s;white-space:nowrap}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>Move with left thumb<br>Walk toward the glowing grave</div>
-<div id="hint">Landscape works best</div>
-<div id="msg"></div>
+<canvas id="game"></canvas>
+<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>Move with left thumb<br>Find the glowing grave</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="interact">INTERACT</button>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.min.js"></script>
+<div id="msg"></div>
 <script>
-const canvas=document.getElementById('c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.outputColorSpace=THREE.SRGBColorSpace;
-
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x1e2631);
-scene.fog=new THREE.FogExp2(0x26313b,0.022);
-
-const camera=new THREE.PerspectiveCamera(58,1,.05,120);
-
-const hemi=new THREE.HemisphereLight(0x8ba0b4,0x252012,1.35); scene.add(hemi);
-const moon=new THREE.DirectionalLight(0xb9c8d9,1.3);
-moon.position.set(-8,14,-5); moon.castShadow=true; scene.add(moon);
-
-const mat={
- ground:new THREE.MeshStandardMaterial({color:0x3f4534,roughness:1}),
- path:new THREE.MeshStandardMaterial({color:0x675044,roughness:1}),
- stone:new THREE.MeshStandardMaterial({color:0x77786d,roughness:.95}),
- darkStone:new THREE.MeshStandardMaterial({color:0x383d3b,roughness:1}),
- moss:new THREE.MeshStandardMaterial({color:0x334522,roughness:1}),
- trunk:new THREE.MeshStandardMaterial({color:0x493226,roughness:1}),
- leaf1:new THREE.MeshStandardMaterial({color:0x9a4b26,roughness:1}),
- leaf2:new THREE.MeshStandardMaterial({color:0xc16a2b,roughness:1}),
- leaf3:new THREE.MeshStandardMaterial({color:0x6f4b25,roughness:1}),
- iron:new THREE.MeshStandardMaterial({color:0x17191b,roughness:.8}),
- kid:new THREE.MeshStandardMaterial({color:0x6f3e2f,roughness:.85}),
- skin:new THREE.MeshStandardMaterial({color:0xc99a73,roughness:1}),
- bone:new THREE.MeshStandardMaterial({color:0xd7cfb2,roughness:.9})
-};
-
-function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;scene.add(o);return o}
-function cyl(rt,rb,h,m,x,y,z,seg=10){const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;scene.add(o);return o}
-function sph(rx,ry,rz,m,x,y,z){const o=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),m);o.scale.set(rx,ry,rz);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o}
-
-box(80,.4,80,mat.ground,0,-.2,12);
-box(5,.05,68,mat.path,0,.01,14);
-
-for(let i=0;i<42;i++){
-  const side=i%2?1:-1;
-  const z=-10+i*1.55+(Math.random()-.5)*.8;
-  const x=side*(4+Math.random()*11);
-  const h=.8+Math.random()*1.2;
-  box(.65+Math.random()*.4,h,.28, i%7===0?mat.darkStone:mat.stone, x,h/2,z);
-  if(i%5===0) box(.9,.12,.5,mat.darkStone,x,.06,z);
-}
-
-function tree(x,z,s=1){
-  cyl(.35*s,.48*s,4.5*s,mat.trunk,x,2.25*s,z,8);
-  sph(1.5*s,.8*s,1.4*s,mat.leaf1,x-.5*s,4.7*s,z);
-  sph(1.35*s,.75*s,1.25*s,mat.leaf2,x+.6*s,5.0*s,z-.2*s);
-  sph(1.1*s,.65*s,1.0*s,mat.leaf3,x+.15*s,4.5*s,z+.65*s);
-}
-tree(8,7,1.3); tree(-9,10,.9); tree(11,24,.8); tree(-12,26,1.1);
-
-box(6,3.4,5,mat.darkStone,-6,1.7,19);
-box(7,.25,5.8,mat.stone,-6,3.55,19);
-const roof1=box(4.7,.22,5.6,mat.stone,-7.15,4.25,19); roof1.rotation.z=.42;
-const roof2=box(4.7,.22,5.6,mat.stone,-4.85,4.25,19); roof2.rotation.z=-.42;
-
-const hero=new THREE.Group(); scene.add(hero); hero.position.set(3.4,0,13.5);
-function hbox(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;hero.add(o);return o}
-hbox(2.4,.35,1.1,mat.darkStone,0,.18,0);
-hbox(1.9,.12,.9,mat.stone,0,.42,0);
-hbox(1.25,2.4,.44,mat.stone,0,1.55,0);
-hbox(1.55,.18,.57,mat.darkStone,0,2.82,0);
-const crest=new THREE.Mesh(new THREE.SphereGeometry(1,18,12),mat.stone);crest.scale.set(.72,.38,.22);crest.position.set(0,3.05,0);crest.castShadow=true;hero.add(crest);
-hbox(.9,1.2,.035,mat.darkStone,0,1.62,-.235);
-for(let i=0;i<5;i++)hbox(.55-i*.04,.025,.018,mat.stone,0,1.98-i*.21,-.258);
-hbox(.25,.16,.02,mat.moss,-.3,1.0,-.25); hbox(.2,.14,.02,mat.moss,.28,2.25,-.25);
-
-const lantern=new THREE.Group(); hero.add(lantern); lantern.position.set(1.0,.3,-.1);
-const lb=new THREE.Mesh(new THREE.CylinderGeometry(.23,.28,.16,8),mat.iron);lantern.add(lb);
-const lc=new THREE.Mesh(new THREE.BoxGeometry(.42,.48,.42),new THREE.MeshStandardMaterial({color:0x3b3025,emissive:0x7a2f00,emissiveIntensity:.5,roughness:.4}));lc.position.y=.3;lantern.add(lc);
-const light=new THREE.PointLight(0xff7c2d,4.5,9,2);light.position.set(0,.45,-.15);light.castShadow=true;lantern.add(light);
-
-const kid=new THREE.Group();scene.add(kid);kid.position.set(0,0,-8);
-const body=new THREE.Mesh(new THREE.BoxGeometry(.7,1.0,.38),mat.kid);body.position.y=1.05;body.castShadow=true;kid.add(body);
-const head=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),mat.skin);head.position.y=1.85;head.castShadow=true;kid.add(head);
-const hair=new THREE.Mesh(new THREE.SphereGeometry(.35,16,10),new THREE.MeshStandardMaterial({color:0x2b1b15,roughness:1}));hair.scale.y=.55;hair.position.set(0,2.03,.03);kid.add(hair);
-for(const x of [-.22,.22]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.16,.8,.18),new THREE.MeshStandardMaterial({color:0x47505b,roughness:1}));leg.position.set(x,.42,0);kid.add(leg)}
-
-const skeleton=new THREE.Group();scene.add(skeleton);skeleton.position.set(2.4,-2.1,13.4);skeleton.visible=false;
-function boneBox(w,h,d,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat.bone);o.position.set(x,y,z);o.castShadow=true;skeleton.add(o)}
-boneBox(.25,.9,.18,0,.8,0); boneBox(.55,.18,.22,0,.32,0);
-const skull=new THREE.Mesh(new THREE.SphereGeometry(.28,14,10),mat.bone);skull.position.y=1.45;skeleton.add(skull);
-boneBox(.12,.8,.12,-.28,.78,0);boneBox(.12,.8,.12,.28,.78,0);
-
-let rise=0, triggered=false;
-function triggerSkeleton(){
- if(triggered)return;
- triggered=true;skeleton.visible=true;rise=0;
- showMsg("Something is coming out of the ground…");
-}
-
-function showMsg(t){const m=document.getElementById('msg');m.textContent=t;m.style.opacity=1;clearTimeout(showMsg.t);showMsg.t=setTimeout(()=>m.style.opacity=0,2500)}
-
-let joy={x:0,y:0}, active=false, jid=null;
-const j=document.getElementById('joy'),k=document.getElementById('knob');
-function setJoy(e){
- const r=j.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
- let dx=e.clientX-cx,dy=e.clientY-cy; const max=42,d=Math.hypot(dx,dy)||1;
- if(d>max){dx*=max/d;dy*=max/d}
- k.style.transform=`translate(${dx}px,${dy}px)`; joy.x=dx/max;joy.y=dy/max;
-}
-j.addEventListener('pointerdown',e=>{active=true;jid=e.pointerId;j.setPointerCapture(jid);setJoy(e)});
-j.addEventListener('pointermove',e=>{if(active&&e.pointerId===jid)setJoy(e)});
-function endJoy(e){if(e.pointerId===jid){active=false;joy.x=joy.y=0;k.style.transform='translate(0,0)'}}
-j.addEventListener('pointerup',endJoy);j.addEventListener('pointercancel',endJoy);
-
-document.getElementById('interact').addEventListener('pointerdown',()=>{
- const d=kid.position.distanceTo(hero.position);
- if(d<3.2){light.intensity=7;triggerSkeleton();showMsg("The lantern wakes.");}
- else showMsg("Nothing nearby to interact with.");
-});
-
-let keys={};
-addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-
-const clock=new THREE.Clock();
-function resize(){
- const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()
-}
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
 addEventListener('resize',resize);resize();
 
-function animate(){
- requestAnimationFrame(animate);
- const dt=Math.min(clock.getDelta(),.035);
- let mx=joy.x,my=-joy.y;
- if(keys['a'])mx-=1;if(keys['d'])mx+=1;if(keys['w'])my+=1;if(keys['s'])my-=1;
- const len=Math.hypot(mx,my);if(len>1){mx/=len;my/=len}
- const speed=3.6;
- kid.position.x+=mx*speed*dt;kid.position.z+=my*speed*dt;
- kid.position.x=THREE.MathUtils.clamp(kid.position.x,-17,17);
- kid.position.z=THREE.MathUtils.clamp(kid.position.z,-15,33);
- if(len>.08)kid.rotation.y=Math.atan2(mx,my);
-
- const back=new THREE.Vector3(0,1.55,-1.65).applyQuaternion(kid.quaternion);
- const targetPos=kid.position.clone().add(back);
- camera.position.lerp(targetPos,1-Math.pow(.001,dt));
- const look=kid.position.clone().add(new THREE.Vector3(0,1.3,0)).add(new THREE.Vector3(0,0,4.4).applyQuaternion(kid.quaternion));
- camera.lookAt(look);
-
- const d=kid.position.distanceTo(hero.position);
- if(d<3.8 && !triggered) showMsg("INTERACT with the glowing grave");
- if(triggered && rise<1){
-   rise=Math.min(1,rise+dt*.55);
-   skeleton.position.y=-2.1+rise*2.0;
- }
-
- renderer.render(scene,camera);
+const graves=[];
+for(let i=0;i<56;i++){
+  let z=4+i*1.1+(Math.random()*.5);
+  let side=i%2?1:-1;
+  graves.push({x:side*(3+Math.random()*11),z, w:.55+Math.random()*.45,h:.8+Math.random()*1.2,dark:i%8===0});
 }
-animate();
+const trees=[
+{x:8,z:9,s:1.6},{x:-10,z:12,s:1.1},{x:11,z:25,s:1},{x:-12,z:27,s:1.3}
+];
+const hero={x:3.5,z:14};
+const maus={x:-6,z:19};
+const player={x:0,z:-8,yaw:0};
+let joy={x:0,y:0}, active=false,pid=null,triggered=false,skeletonRise=0;
+const joyEl=document.getElementById('joy'),knob=document.getElementById('knob');
+
+function setJoy(e){
+  const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  let dx=e.clientX-cx,dy=e.clientY-cy; const max=42,d=Math.hypot(dx,dy)||1;
+  if(d>max){dx*=max/d;dy*=max/d}
+  knob.style.transform=`translate(${dx}px,${dy}px)`;
+  joy.x=dx/max; joy.y=dy/max;
+}
+joyEl.addEventListener('pointerdown',e=>{active=true;pid=e.pointerId;joyEl.setPointerCapture(pid);setJoy(e)});
+joyEl.addEventListener('pointermove',e=>{if(active&&e.pointerId===pid)setJoy(e)});
+function end(e){if(e.pointerId===pid){active=false;joy.x=joy.y=0;knob.style.transform='translate(0,0)'}}
+joyEl.addEventListener('pointerup',end);joyEl.addEventListener('pointercancel',end);
+
+const msg=document.getElementById('msg');
+function say(t){msg.textContent=t;msg.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>msg.style.opacity=0,2200)}
+document.getElementById('interact').addEventListener('pointerdown',()=>{
+ const d=Math.hypot(player.x-hero.x,player.z-hero.z);
+ if(d<3.3){triggered=true;say("The lantern wakes…");}
+ else say("Nothing nearby.");
+});
+
+function worldToScreen(wx,wz){
+  const dx=wx-player.x, dz=wz-player.z;
+  const ca=Math.cos(-player.yaw),sa=Math.sin(-player.yaw);
+  const rx=dx*ca-dz*sa, rz=dx*sa+dz*ca;
+  if(rz<.4)return null;
+  const f=360;
+  const sx=W/2 + (rx/rz)*f;
+  const groundY=H*.63 + 110/rz;
+  const scale=f/rz;
+  return {x:sx,y:groundY,s:scale,z:rz};
+}
+
+function drawSky(){
+  const g=ctx.createLinearGradient(0,0,0,H*.65);
+  g.addColorStop(0,'#1b2430'); g.addColorStop(1,'#3a4650');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H*.66);
+  const gg=ctx.createLinearGradient(0,H*.55,0,H);
+  gg.addColorStop(0,'#404737');gg.addColorStop(1,'#25291f');
+  ctx.fillStyle=gg;ctx.fillRect(0,H*.55,W,H*.45);
+}
+function drawPath(){
+  ctx.fillStyle='#6c5448';
+  ctx.beginPath();ctx.moveTo(W*.37,H);ctx.lineTo(W*.47,H*.61);ctx.lineTo(W*.53,H*.61);ctx.lineTo(W*.63,H);ctx.closePath();ctx.fill();
+}
+function drawMaus(){
+ const p=worldToScreen(maus.x,maus.z);if(!p)return;
+ const w=6*p.s,h=3.5*p.s;
+ ctx.fillStyle='#3c3c39';ctx.fillRect(p.x-w/2,p.y-h,w,h);
+ ctx.fillStyle='#77736a';
+ ctx.beginPath();ctx.moveTo(p.x-w*.55,p.y-h);ctx.lineTo(p.x,p.y-h-1.3*p.s);ctx.lineTo(p.x+w*.55,p.y-h);ctx.closePath();ctx.fill();
+}
+function drawTree(t){
+ const p=worldToScreen(t.x,t.z);if(!p)return;
+ const s=t.s*p.s;
+ ctx.fillStyle='#402d22';ctx.fillRect(p.x-.18*s,p.y-3.5*s,.36*s,3.5*s);
+ const colors=['#8b4727','#bb642d','#6d4a27'];
+ for(let i=0;i<5;i++){
+   ctx.fillStyle=colors[i%3];
+   ctx.beginPath();ctx.ellipse(p.x+(-.8+i*.4)*s,p.y-3.6*s-(i%2)*.3*s,1.1*s,.62*s,0,0,Math.PI*2);ctx.fill();
+ }
+}
+function drawGrave(g){
+ const p=worldToScreen(g.x,g.z);if(!p||p.x<-100||p.x>W+100)return;
+ const w=g.w*p.s,h=g.h*p.s;
+ ctx.fillStyle=g.dark?'#3f4442':'#8a8579';
+ ctx.fillRect(p.x-w/2,p.y-h,w,h);
+ ctx.fillStyle='#5e5b54';ctx.fillRect(p.x-w*.62,p.y,w*1.24,.12*p.s);
+}
+function drawHero(){
+ const p=worldToScreen(hero.x,hero.z);if(!p)return;
+ const s=p.s;
+ ctx.save();
+ ctx.shadowColor='#ff9b3d';ctx.shadowBlur=22;
+ ctx.fillStyle='#8b887b';
+ ctx.fillRect(p.x-.65*s,p.y-2.5*s,1.3*s,2.5*s);
+ ctx.beginPath();ctx.arc(p.x,p.y-2.55*s,.66*s,Math.PI,0);ctx.fill();
+ ctx.fillStyle='#3a3c38';ctx.fillRect(p.x-.48*s,p.y-1.9*s,.96*s,1.15*s);
+ ctx.fillStyle='#d7aa69';for(let i=0;i<4;i++)ctx.fillRect(p.x-.29*s,p.y-(1.65-i*.23)*s,.58*s,.035*s);
+ ctx.fillStyle='#e07d2f';ctx.beginPath();ctx.arc(p.x+.95*s,p.y-.4*s,.18*s,0,Math.PI*2);ctx.fill();
+ ctx.restore();
+ if(triggered){
+   const r=Math.min(1,skeletonRise);
+   ctx.strokeStyle='#d8cfb0';ctx.lineWidth=Math.max(2,.06*s);
+   const sy=p.y-r*1.7*s;
+   ctx.beginPath();ctx.arc(p.x-.7*s,sy-.7*s,.22*s,0,Math.PI*2);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(p.x-.7*s,sy-.5*s);ctx.lineTo(p.x-.7*s,sy+.45*s);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(p.x-1.0*s,sy-.15*s);ctx.lineTo(p.x-.4*s,sy-.05*s);ctx.stroke();
+ }
+}
+function drawPlayer(){
+ const x=W/2,y=H*.71;
+ ctx.save();
+ ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=10;
+ ctx.fillStyle='#6f3d2e';ctx.fillRect(x-18,y-58,36,48);
+ ctx.fillStyle='#c99874';ctx.beginPath();ctx.arc(x,y-72,15,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#281b17';ctx.beginPath();ctx.arc(x,y-78,15,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#4b5561';ctx.fillRect(x-14,y-10,9,30);ctx.fillRect(x+5,y-10,9,30);
+ ctx.restore();
+}
+function render(){
+ drawSky();drawPath();
+ const objs=[];
+ for(const g of graves)objs.push({z:g.z,fn:()=>drawGrave(g)});
+ for(const t of trees)objs.push({z:t.z,fn:()=>drawTree(t)});
+ objs.push({z:maus.z,fn:drawMaus},{z:hero.z,fn:drawHero});
+ objs.sort((a,b)=>b.z-a.z);for(const o of objs)o.fn();
+ drawPlayer();
+}
+let last=performance.now();
+function tick(now){
+ const dt=Math.min((now-last)/1000,.04);last=now;
+ const mx=joy.x,my=-joy.y;
+ const mag=Math.hypot(mx,my);
+ if(mag>.08){
+   const dir=Math.atan2(mx,my);
+   player.yaw += dir*dt*2.0;
+   player.x += Math.sin(player.yaw)*3.4*dt*mag;
+   player.z += Math.cos(player.yaw)*3.4*dt*mag;
+ }
+ if(triggered)skeletonRise=Math.min(1,skeletonRise+dt*.75);
+ if(Math.hypot(player.x-hero.x,player.z-hero.z)<3.7 && !triggered) say("Tap INTERACT at the glowing grave");
+ render();requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
