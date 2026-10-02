@@ -157,8 +157,9 @@ function tick(now){
  if(mag>.08){
    // Conventional screen-relative mobile controls.
    // Push right -> move right. Push up -> move forward.
-   player.x += mx*3.6*dt;
-   player.z += my*3.6*dt;
+   // Invert both axes so the world responds in the same direction as the thumb.
+   player.x -= mx*3.6*dt;
+   player.z -= my*3.6*dt;
  }
  if(triggered)skeletonRise=Math.min(1,skeletonRise+dt*.75);
  if(Math.hypot(player.x-hero.x,player.z-hero.z)<3.7 && !triggered) say("Tap INTERACT at the glowing grave");
