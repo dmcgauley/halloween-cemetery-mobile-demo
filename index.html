@@ -16,159 +16,301 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#1
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>LEFT = left • RIGHT = right<br>UP = forward • DOWN = backward</div>
+<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>UP = forward • DOWN = backward<br>LEFT / RIGHT = move sideways</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="interact">INTERACT</button>
 <div id="msg"></div>
+
 <script>
 const c=document.getElementById('game'),ctx=c.getContext('2d');
 let W=0,H=0,DPR=1;
-function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth;H=innerHeight;
+  c.width=W*DPR;c.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
 addEventListener('resize',resize);resize();
 
 const graves=[];
-for(let i=0;i<56;i++){
-  let z=4+i*1.1+(Math.random()*.5);
-  let side=i%2?1:-1;
-  graves.push({x:side*(3+Math.random()*11),z, w:.55+Math.random()*.45,h:.8+Math.random()*1.2,dark:i%8===0});
+for(let i=0;i<60;i++){
+  const z=2+i*1.0+(Math.random()*.55);
+  const side=i%2?1:-1;
+  graves.push({x:side*(3+Math.random()*11),z,w:.55+Math.random()*.45,h:.8+Math.random()*1.2,dark:i%8===0});
 }
+
 const trees=[
-{x:8,z:9,s:1.6},{x:-10,z:12,s:1.1},{x:11,z:25,s:1},{x:-12,z:27,s:1.3}
+  {x:8,z:9,s:1.6},{x:-10,z:12,s:1.1},{x:11,z:25,s:1},{x:-12,z:27,s:1.3}
 ];
+
+const groundBits=[];
+for(let i=0;i<180;i++){
+  groundBits.push({
+    x:(Math.random()*34)-17,
+    z:(Math.random()*52)-4,
+    r:.03+Math.random()*.05,
+    c:i%3
+  });
+}
+
 const hero={x:3.5,z:14};
 const maus={x:-6,z:19};
-const player={x:0,z:-8,yaw:0};
-let joy={x:0,y:0}, active=false,pid=null,triggered=false,skeletonRise=0;
+const player={x:0,z:-8};
+
+let joy={x:0,y:0},active=false,pid=null;
+let triggered=false,skeletonRise=0;
 const joyEl=document.getElementById('joy'),knob=document.getElementById('knob');
+const msg=document.getElementById('msg');
 
 function setJoy(e){
-  const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
-  let dx=e.clientX-cx,dy=e.clientY-cy; const max=42,d=Math.hypot(dx,dy)||1;
+  const r=joyEl.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  let dx=e.clientX-cx,dy=e.clientY-cy;
+  const max=42,d=Math.hypot(dx,dy)||1;
   if(d>max){dx*=max/d;dy*=max/d}
   knob.style.transform=`translate(${dx}px,${dy}px)`;
-  joy.x=dx/max; joy.y=dy/max;
+  joy.x=dx/max;
+  joy.y=dy/max;
 }
-joyEl.addEventListener('pointerdown',e=>{active=true;pid=e.pointerId;joyEl.setPointerCapture(pid);setJoy(e)});
+joyEl.addEventListener('pointerdown',e=>{
+  active=true;pid=e.pointerId;
+  joyEl.setPointerCapture(pid);
+  setJoy(e);
+});
 joyEl.addEventListener('pointermove',e=>{if(active&&e.pointerId===pid)setJoy(e)});
-function end(e){if(e.pointerId===pid){active=false;joy.x=joy.y=0;knob.style.transform='translate(0,0)'}}
-joyEl.addEventListener('pointerup',end);joyEl.addEventListener('pointercancel',end);
+function endJoy(e){
+  if(e.pointerId===pid){
+    active=false;joy.x=0;joy.y=0;
+    knob.style.transform='translate(0,0)';
+  }
+}
+joyEl.addEventListener('pointerup',endJoy);
+joyEl.addEventListener('pointercancel',endJoy);
 
-const msg=document.getElementById('msg');
-function say(t){msg.textContent=t;msg.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>msg.style.opacity=0,2200)}
+function say(t){
+  msg.textContent=t;
+  msg.style.opacity=1;
+  clearTimeout(say.t);
+  say.t=setTimeout(()=>msg.style.opacity=0,1800);
+}
+
 document.getElementById('interact').addEventListener('pointerdown',()=>{
- const d=Math.hypot(player.x-hero.x,player.z-hero.z);
- if(d<3.3){triggered=true;say("The lantern wakes…");}
- else say("Nothing nearby.");
+  const d=Math.hypot(player.x-hero.x,player.z-hero.z);
+  if(d<3.3){
+    triggered=true;
+    say("The lantern wakes…");
+  } else {
+    say("Nothing nearby.");
+  }
 });
 
+// True camera-follow projection.
+// Player stays anchored in the foreground.
+// Every world object is projected relative to the player's current position.
 function worldToScreen(wx,wz){
-  // Fixed camera for this temporary family demo.
-  // The scenery stays put while the kid visibly moves through it.
-  const rx=wx, rz=wz+10;
-  if(rz<.4)return null;
-  const f=360;
-  const sx=W/2 + (rx/rz)*f;
-  const groundY=H*.63 + 110/rz;
-  const scale=f/rz;
+  const rx=wx-player.x;
+  const rz=wz-player.z;
+  if(rz<.35)return null;
+
+  const focal=360;
+  const sx=W/2 + (rx/rz)*focal;
+  const horizon=H*.54;
+  const groundY=horizon + 150/rz;
+  const scale=focal/rz;
   return {x:sx,y:groundY,s:scale,z:rz};
 }
-function drawSky(){
-  const g=ctx.createLinearGradient(0,0,0,H*.65);
-  g.addColorStop(0,'#1b2430'); g.addColorStop(1,'#3a4650');
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H*.66);
-  const gg=ctx.createLinearGradient(0,H*.55,0,H);
-  gg.addColorStop(0,'#404737');gg.addColorStop(1,'#25291f');
-  ctx.fillStyle=gg;ctx.fillRect(0,H*.55,W,H*.45);
-}
-function drawPath(){
-  ctx.fillStyle='#6c5448';
-  ctx.beginPath();ctx.moveTo(W*.37,H);ctx.lineTo(W*.47,H*.61);ctx.lineTo(W*.53,H*.61);ctx.lineTo(W*.63,H);ctx.closePath();ctx.fill();
-}
-function drawMaus(){
- const p=worldToScreen(maus.x,maus.z);if(!p)return;
- const w=6*p.s,h=3.5*p.s;
- ctx.fillStyle='#3c3c39';ctx.fillRect(p.x-w/2,p.y-h,w,h);
- ctx.fillStyle='#77736a';
- ctx.beginPath();ctx.moveTo(p.x-w*.55,p.y-h);ctx.lineTo(p.x,p.y-h-1.3*p.s);ctx.lineTo(p.x+w*.55,p.y-h);ctx.closePath();ctx.fill();
-}
-function drawTree(t){
- const p=worldToScreen(t.x,t.z);if(!p)return;
- const s=t.s*p.s;
- ctx.fillStyle='#402d22';ctx.fillRect(p.x-.18*s,p.y-3.5*s,.36*s,3.5*s);
- const colors=['#8b4727','#bb642d','#6d4a27'];
- for(let i=0;i<5;i++){
-   ctx.fillStyle=colors[i%3];
-   ctx.beginPath();ctx.ellipse(p.x+(-.8+i*.4)*s,p.y-3.6*s-(i%2)*.3*s,1.1*s,.62*s,0,0,Math.PI*2);ctx.fill();
- }
-}
-function drawGrave(g){
- const p=worldToScreen(g.x,g.z);if(!p||p.x<-100||p.x>W+100)return;
- const w=g.w*p.s,h=g.h*p.s;
- ctx.fillStyle=g.dark?'#3f4442':'#8a8579';
- ctx.fillRect(p.x-w/2,p.y-h,w,h);
- ctx.fillStyle='#5e5b54';ctx.fillRect(p.x-w*.62,p.y,w*1.24,.12*p.s);
-}
-function drawHero(){
- const p=worldToScreen(hero.x,hero.z);if(!p)return;
- const s=p.s;
- ctx.save();
- ctx.shadowColor='#ff9b3d';ctx.shadowBlur=22;
- ctx.fillStyle='#8b887b';
- ctx.fillRect(p.x-.65*s,p.y-2.5*s,1.3*s,2.5*s);
- ctx.beginPath();ctx.arc(p.x,p.y-2.55*s,.66*s,Math.PI,0);ctx.fill();
- ctx.fillStyle='#3a3c38';ctx.fillRect(p.x-.48*s,p.y-1.9*s,.96*s,1.15*s);
- ctx.fillStyle='#d7aa69';for(let i=0;i<4;i++)ctx.fillRect(p.x-.29*s,p.y-(1.65-i*.23)*s,.58*s,.035*s);
- ctx.fillStyle='#e07d2f';ctx.beginPath();ctx.arc(p.x+.95*s,p.y-.4*s,.18*s,0,Math.PI*2);ctx.fill();
- ctx.restore();
- if(triggered){
-   const r=Math.min(1,skeletonRise);
-   ctx.strokeStyle='#d8cfb0';ctx.lineWidth=Math.max(2,.06*s);
-   const sy=p.y-r*1.7*s;
-   ctx.beginPath();ctx.arc(p.x-.7*s,sy-.7*s,.22*s,0,Math.PI*2);ctx.stroke();
-   ctx.beginPath();ctx.moveTo(p.x-.7*s,sy-.5*s);ctx.lineTo(p.x-.7*s,sy+.45*s);ctx.stroke();
-   ctx.beginPath();ctx.moveTo(p.x-1.0*s,sy-.15*s);ctx.lineTo(p.x-.4*s,sy-.05*s);ctx.stroke();
- }
-}
-function drawPlayer(){
- const depth = Math.max(0.55, Math.min(1.25, 1 - (player.z+8)*0.018));
- const x = W/2 + player.x*22;
- const y = H*.73 - (player.z+8)*8;
- const s = depth;
 
- ctx.save();
- ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=10;
- ctx.fillStyle='#6f3d2e';ctx.fillRect(x-18*s,y-58*s,36*s,48*s);
- ctx.fillStyle='#c99874';ctx.beginPath();ctx.arc(x,y-72*s,15*s,0,Math.PI*2);ctx.fill();
- ctx.fillStyle='#281b17';ctx.beginPath();ctx.arc(x,y-78*s,15*s,Math.PI,Math.PI*2);ctx.fill();
- ctx.fillStyle='#4b5561';ctx.fillRect(x-14*s,y-10*s,9*s,30*s);ctx.fillRect(x+5*s,y-10*s,9*s,30*s);
- ctx.restore();
+function drawSky(){
+  const g=ctx.createLinearGradient(0,0,0,H*.62);
+  g.addColorStop(0,'#17212c');
+  g.addColorStop(1,'#44515a');
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H*.62);
+
+  const gg=ctx.createLinearGradient(0,H*.52,0,H);
+  gg.addColorStop(0,'#45503a');
+  gg.addColorStop(1,'#23291f');
+  ctx.fillStyle=gg;
+  ctx.fillRect(0,H*.52,W,H*.48);
+
+  ctx.fillStyle='rgba(205,220,230,.09)';
+  ctx.fillRect(0,H*.48,W,H*.17);
 }
+
+function projectPoly(points,fill){
+  const projected=[];
+  for(const [x,z] of points){
+    const p=worldToScreen(x,z);
+    if(!p)return;
+    projected.push(p);
+  }
+  ctx.fillStyle=fill;
+  ctx.beginPath();
+  ctx.moveTo(projected[0].x,projected[0].y);
+  for(let i=1;i<projected.length;i++)ctx.lineTo(projected[i].x,projected[i].y);
+  ctx.closePath();ctx.fill();
+}
+
+function drawPath(){
+  // Long world-space path. Because it's projected relative to player,
+  // it moves with the world instead of being painted on the screen.
+  projectPoly([[-2.3,-4],[2.3,-4],[2.3,46],[-2.3,46]],'#6c5549');
+
+  // faint center wear
+  projectPoly([[-.25,-4],[.25,-4],[.25,46],[-.25,46]],'rgba(148,120,95,.23)');
+}
+
+function drawGroundBits(){
+  const cols=['#6a3d27','#8a5128','#58442d'];
+  for(const b of groundBits){
+    const p=worldToScreen(b.x,b.z);
+    if(!p||p.z>42)return;
+    const r=Math.max(1.2,b.r*p.s);
+    ctx.fillStyle=cols[b.c];
+    ctx.beginPath();
+    ctx.ellipse(p.x,p.y,r*1.7,r*.6,0,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawMaus(){
+  const p=worldToScreen(maus.x,maus.z);if(!p)return;
+  const w=6*p.s,h=3.5*p.s;
+  ctx.fillStyle='#3c3c39';
+  ctx.fillRect(p.x-w/2,p.y-h,w,h);
+  ctx.fillStyle='#77736a';
+  ctx.beginPath();
+  ctx.moveTo(p.x-w*.55,p.y-h);
+  ctx.lineTo(p.x,p.y-h-1.3*p.s);
+  ctx.lineTo(p.x+w*.55,p.y-h);
+  ctx.closePath();ctx.fill();
+}
+
+function drawTree(t){
+  const p=worldToScreen(t.x,t.z);if(!p)return;
+  const s=t.s*p.s;
+  ctx.fillStyle='#402d22';
+  ctx.fillRect(p.x-.18*s,p.y-3.5*s,.36*s,3.5*s);
+  const colors=['#8b4727','#bb642d','#6d4a27'];
+  for(let i=0;i<5;i++){
+    ctx.fillStyle=colors[i%3];
+    ctx.beginPath();
+    ctx.ellipse(p.x+(-.8+i*.4)*s,p.y-3.6*s-(i%2)*.3*s,1.1*s,.62*s,0,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawGrave(g){
+  const p=worldToScreen(g.x,g.z);
+  if(!p||p.x<-100||p.x>W+100)return;
+  const w=g.w*p.s,h=g.h*p.s;
+  ctx.fillStyle=g.dark?'#3f4442':'#8a8579';
+  ctx.fillRect(p.x-w/2,p.y-h,w,h);
+  ctx.fillStyle='#5e5b54';
+  ctx.fillRect(p.x-w*.62,p.y,w*1.24,.12*p.s);
+}
+
+function drawHero(){
+  const p=worldToScreen(hero.x,hero.z);if(!p)return;
+  const s=p.s;
+  ctx.save();
+  ctx.shadowColor='#ff9b3d';
+  ctx.shadowBlur=22;
+  ctx.fillStyle='#8b887b';
+  ctx.fillRect(p.x-.65*s,p.y-2.5*s,1.3*s,2.5*s);
+  ctx.beginPath();
+  ctx.arc(p.x,p.y-2.55*s,.66*s,Math.PI,0);
+  ctx.fill();
+  ctx.fillStyle='#3a3c38';
+  ctx.fillRect(p.x-.48*s,p.y-1.9*s,.96*s,1.15*s);
+  ctx.fillStyle='#d7aa69';
+  for(let i=0;i<4;i++)ctx.fillRect(p.x-.29*s,p.y-(1.65-i*.23)*s,.58*s,.035*s);
+  ctx.fillStyle='#e07d2f';
+  ctx.beginPath();
+  ctx.arc(p.x+.95*s,p.y-.4*s,.18*s,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  if(triggered){
+    const r=Math.min(1,skeletonRise);
+    ctx.strokeStyle='#d8cfb0';
+    ctx.lineWidth=Math.max(2,.06*s);
+    const sy=p.y-r*1.7*s;
+    ctx.beginPath();ctx.arc(p.x-.7*s,sy-.7*s,.22*s,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x-.7*s,sy-.5*s);ctx.lineTo(p.x-.7*s,sy+.45*s);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x-1.0*s,sy-.15*s);ctx.lineTo(p.x-.4*s,sy-.05*s);ctx.stroke();
+  }
+}
+
+function drawPlayer(){
+  // The camera follows the kid, so he stays in one place on screen.
+  const x=W/2;
+  const y=H*.73;
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.35)';
+  ctx.shadowBlur=10;
+  ctx.fillStyle='#6f3d2e';
+  ctx.fillRect(x-18,y-58,36,48);
+  ctx.fillStyle='#c99874';
+  ctx.beginPath();ctx.arc(x,y-72,15,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#281b17';
+  ctx.beginPath();ctx.arc(x,y-78,15,Math.PI,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#4b5561';
+  ctx.fillRect(x-14,y-10,9,30);
+  ctx.fillRect(x+5,y-10,9,30);
+  ctx.restore();
+}
+
 function render(){
- drawSky();drawPath();
- const objs=[];
- for(const g of graves)objs.push({z:g.z,fn:()=>drawGrave(g)});
- for(const t of trees)objs.push({z:t.z,fn:()=>drawTree(t)});
- objs.push({z:maus.z,fn:drawMaus},{z:hero.z,fn:drawHero});
- objs.sort((a,b)=>b.z-a.z);for(const o of objs)o.fn();
- drawPlayer();
+  drawSky();
+  drawPath();
+  drawGroundBits();
+
+  const objs=[];
+  for(const g of graves)objs.push({z:g.z,fn:()=>drawGrave(g)});
+  for(const t of trees)objs.push({z:t.z,fn:()=>drawTree(t)});
+  objs.push({z:maus.z,fn:drawMaus});
+  objs.push({z:hero.z,fn:drawHero});
+
+  // farthest first for painter's algorithm
+  objs.sort((a,b)=>b.z-a.z);
+  for(const o of objs)o.fn();
+
+  drawPlayer();
 }
+
 let last=performance.now();
 function tick(now){
- const dt=Math.min((now-last)/1000,.04);last=now;
- const mx=joy.x,my=-joy.y;
- const mag=Math.hypot(mx,my);
- if(mag>.08){
-   // Conventional screen-relative mobile controls.
-   // Push right -> move right. Push up -> move forward.
-   // Correct world-space movement mapping.
-   // Right thumb motion increases X.
-   // Up thumb motion increases forward Z.
-   player.x += mx*3.6*dt;
-   player.z += my*3.6*dt;
- }
- if(triggered)skeletonRise=Math.min(1,skeletonRise+dt*.75);
- if(Math.hypot(player.x-hero.x,player.z-hero.z)<3.7 && !triggered) say("Tap INTERACT at the glowing grave");
- render();requestAnimationFrame(tick);
+  const dt=Math.min((now-last)/1000,.04);
+  last=now;
+
+  // Screen-intuitive control mapping:
+  // joystick up = forward into cemetery
+  // joystick down = backward
+  // joystick right = move right
+  // joystick left = move left
+  const mx=joy.x;
+  const forward=-joy.y;
+  const mag=Math.hypot(mx,forward);
+
+  if(mag>.07){
+    player.x += mx*3.6*dt;
+    player.z += forward*3.6*dt;
+    player.x=Math.max(-12,Math.min(12,player.x));
+    player.z=Math.max(-8,Math.min(35,player.z));
+  }
+
+  if(triggered)skeletonRise=Math.min(1,skeletonRise+dt*.75);
+
+  const d=Math.hypot(player.x-hero.x,player.z-hero.z);
+  if(d<3.7 && !triggered && !say.near){
+    say.near=true;
+    say("Tap INTERACT at the glowing grave");
+  }
+  if(d>=4.2)say.near=false;
+
+  render();
+  requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 </script>
