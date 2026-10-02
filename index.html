@@ -16,7 +16,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#1
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>Move with left thumb<br>Find the glowing grave</div>
+<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>Left thumb: move in any direction<br>Find the glowing grave</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="interact">INTERACT</button>
 <div id="msg"></div>
@@ -62,9 +62,9 @@ document.getElementById('interact').addEventListener('pointerdown',()=>{
 });
 
 function worldToScreen(wx,wz){
-  const dx=wx-player.x, dz=wz-player.z;
-  const ca=Math.cos(-player.yaw),sa=Math.sin(-player.yaw);
-  const rx=dx*ca-dz*sa, rz=dx*sa+dz*ca;
+  // Screen-relative movement: the camera always faces "forward" into the cemetery.
+  // This makes the mobile joystick behave like a normal game joystick instead of a steering wheel.
+  const rx=wx-player.x, rz=wz-player.z;
   if(rz<.4)return null;
   const f=360;
   const sx=W/2 + (rx/rz)*f;
@@ -155,10 +155,10 @@ function tick(now){
  const mx=joy.x,my=-joy.y;
  const mag=Math.hypot(mx,my);
  if(mag>.08){
-   const dir=Math.atan2(mx,my);
-   player.yaw += dir*dt*2.0;
-   player.x += Math.sin(player.yaw)*3.4*dt*mag;
-   player.z += Math.cos(player.yaw)*3.4*dt*mag;
+   // Conventional screen-relative mobile controls.
+   // Push right -> move right. Push up -> move forward.
+   player.x += mx*3.6*dt;
+   player.z += my*3.6*dt;
  }
  if(triggered)skeletonRise=Math.min(1,skeletonRise+dt*.75);
  if(Math.hypot(player.x-hero.x,player.z-hero.z)<3.7 && !triggered) say("Tap INTERACT at the glowing grave");
