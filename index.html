@@ -16,7 +16,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#1
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>Left thumb: move in any direction<br>Find the glowing grave</div>
+<div id="hud"><b>CEMETERY FAMILY DEMO</b><br>LEFT = left • RIGHT = right<br>UP = forward • DOWN = backward</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="interact">INTERACT</button>
 <div id="msg"></div>
@@ -62,9 +62,9 @@ document.getElementById('interact').addEventListener('pointerdown',()=>{
 });
 
 function worldToScreen(wx,wz){
-  // Screen-relative movement: the camera always faces "forward" into the cemetery.
-  // This makes the mobile joystick behave like a normal game joystick instead of a steering wheel.
-  const rx=wx-player.x, rz=wz-player.z;
+  // Fixed camera for this temporary family demo.
+  // The scenery stays put while the kid visibly moves through it.
+  const rx=wx, rz=wz+10;
   if(rz<.4)return null;
   const f=360;
   const sx=W/2 + (rx/rz)*f;
@@ -72,7 +72,6 @@ function worldToScreen(wx,wz){
   const scale=f/rz;
   return {x:sx,y:groundY,s:scale,z:rz};
 }
-
 function drawSky(){
   const g=ctx.createLinearGradient(0,0,0,H*.65);
   g.addColorStop(0,'#1b2430'); g.addColorStop(1,'#3a4650');
@@ -131,13 +130,17 @@ function drawHero(){
  }
 }
 function drawPlayer(){
- const x=W/2,y=H*.71;
+ const depth = Math.max(0.55, Math.min(1.25, 1 - (player.z+8)*0.018));
+ const x = W/2 + player.x*22;
+ const y = H*.73 - (player.z+8)*8;
+ const s = depth;
+
  ctx.save();
  ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=10;
- ctx.fillStyle='#6f3d2e';ctx.fillRect(x-18,y-58,36,48);
- ctx.fillStyle='#c99874';ctx.beginPath();ctx.arc(x,y-72,15,0,Math.PI*2);ctx.fill();
- ctx.fillStyle='#281b17';ctx.beginPath();ctx.arc(x,y-78,15,Math.PI,Math.PI*2);ctx.fill();
- ctx.fillStyle='#4b5561';ctx.fillRect(x-14,y-10,9,30);ctx.fillRect(x+5,y-10,9,30);
+ ctx.fillStyle='#6f3d2e';ctx.fillRect(x-18*s,y-58*s,36*s,48*s);
+ ctx.fillStyle='#c99874';ctx.beginPath();ctx.arc(x,y-72*s,15*s,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#281b17';ctx.beginPath();ctx.arc(x,y-78*s,15*s,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#4b5561';ctx.fillRect(x-14*s,y-10*s,9*s,30*s);ctx.fillRect(x+5*s,y-10*s,9*s,30*s);
  ctx.restore();
 }
 function render(){
